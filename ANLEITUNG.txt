@@ -1,0 +1,8 @@
+Vorrat Rechner v1.1 - Backup und Wiederherstellung
+
+Alle Dateien in das Hauptverzeichnis des GitHub-Repositories hochladen und bestehende Dateien ueberschreiben. Nach erfolgreichem GitHub Pages Deployment die App auf dem iPhone online oeffnen, dann erneut starten.
+
+Backup sichern: Oben auf "Backup sichern" tippen und die JSON-Datei ueber das iOS-Teilen/Download-Menue in Dateien oder iCloud Drive speichern.
+Backup laden: Oben auf "Backup laden" tippen, JSON-Datei auswaehlen und das Ersetzen der aktuellen Daten bestaetigen.
+
+WICHTIG: Vor dem Import aktuelle Daten sichern. JSON-Datei nicht manuell bearbeiten. Offline-Nutzung bleibt erhalten.

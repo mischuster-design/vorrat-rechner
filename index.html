@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Vorrat Rechner">
+<meta name="theme-color" content="#f4f0e6">
+<title>Vorrat Rechner</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<script>if ("serviceWorker" in navigator) window.addEventListener("load", function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});</script>
+<style>
+  :root {
+    --paper: #f4f0e6;
+    --ink: #1b1915;
+    --olive: #243c2b;
+    --clay: #9a3412;
+    --card: #fbf8f1;
+    --mist: #cfc6b4;
+    --muted: #4a453c;
+    --wash: rgb(74 112 146 / 0.34);
+    --sans: ui-sans-serif, system-ui, sans-serif;
+    --serif: ui-serif, palatino, "Palatino Linotype", georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--paper); color: var(--ink); }
+  body {
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; }
+  .app {
+    height: 100dvh;
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .app input { user-select: text; -webkit-user-select: text; }
+  .backup-bar { display:flex; gap:8px; padding:7px 12px; border-bottom:1px solid var(--mist); background:var(--card); align-items:center; }
+  .backup-bar button { flex:1; min-height:39px; border:1px solid var(--mist); border-radius:10px; background:var(--paper); font-weight:650; font-size:13px; }
+  .backup-bar button:active { background:var(--mist); }
+  .frame { flex: 1; min-height: 0; overflow: hidden; position: relative; width: 100%; }
+  .track { display: flex; height: 100%; width: 100%; transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .track.drag { transition: none; }
+  .page { height: 100%; min-width: 100%; width: 100%; flex: 0 0 100%; overflow: hidden; }
+  .scroll { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+  .col { height: 100%; display: flex; flex-direction: column; }
+  .grow { flex: 1; min-height: 0; }
+  nav.bar {
+    display: flex;
+    border-top: 1px solid var(--mist);
+    background: var(--card);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  nav.bar button {
+    flex: 1;
+    min-height: 56px;
+    border: 0;
+    border-top: 4px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  nav.bar button.on { color: var(--olive); border-top-color: var(--olive); }
+  nav.bar svg { width: 20px; height: 20px; }
+  .kicker { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--olive); }
+  h2 { margin: 4px 0 0; font-family: var(--serif); font-size: 36px; font-weight: 500; }
+  .muted { color: var(--muted); }
+  .pad { padding: 16px 20px 12px; }
+  .hero { font-family: var(--serif); font-size: 48px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .field { display: block; }
+  .field span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 16px; }
+  .field input, .textin {
+    width: 100%;
+    height: 56px;
+    border: 1px solid var(--mist);
+    border-radius: 16px;
+    background: var(--paper);
+    padding: 0 16px;
+    font-size: 18px;
+    outline: none;
+  }
+  .field input:focus, .textin:focus { border-color: var(--olive); box-shadow: 0 0 0 2px var(--olive); }
+  .card {
+    border: 1px solid var(--mist);
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px;
+    margin: 0 16px 12px;
+  }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .btn {
+    min-height: 56px;
+    width: 100%;
+    border: 0;
+    border-radius: 16px;
+    background: var(--olive);
+    color: var(--card);
+    font-size: 18px;
+    font-weight: 650;
+  }
+  .btn.clay { background: var(--clay); }
+  .btn.ghost {
+    width: auto;
+    min-height: 48px;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--mist);
+    border-radius: 999px;
+    padding: 0 16px;
+    font-size: 16px;
+  }
+  .btn:disabled { opacity: 0.4; }
+  .round {
+    width: 56px;
+    height: 56px;
+    flex: 0 0 56px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--olive);
+    color: var(--card);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .round:disabled { opacity: 0.4; }
+  .iconbtn {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--olive);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .week, .grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .week div { text-align: center; font-size: 14px; font-weight: 700; padding: 4px 0; color: var(--muted); }
+  .week div.so { color: var(--clay); }
+  .grid { gap: 4px; }
+  .day {
+    position: relative;
+    aspect-ratio: 1;
+    border: 0;
+    border-radius: 12px;
+    background: var(--paper);
+    padding: 4px 0 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .day.sel { box-shadow: inset 0 0 0 2px var(--olive); }
+  .day .num {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .day .num.today { background: var(--clay); color: var(--card); font-weight: 700; }
+  .day .num.sun { color: var(--clay); }
+  .day .num.out { color: var(--muted); }
+  .day .tag { margin-top: 2px; font-size: 10px; line-height: 1; font-weight: 700; color: var(--olive); max-width: 100%; overflow: hidden; }
+  .wash {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: var(--wash);
+    pointer-events: none;
+  }
+  .foot { border-top: 1px solid var(--mist); background: var(--card); padding: 12px 16px; }
+  .lottie { border-top: 1px solid var(--mist); background: var(--paper); padding: 12px 16px; font-size: 18px; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
+  .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .choice button {
+    min-height: 56px; border-radius: 16px; border: 1px solid var(--mist);
+    background: var(--paper); font-size: 16px; font-weight: 650;
+  }
+  .choice button.on { background: var(--olive); color: var(--card); border-color: var(--olive); }
+  .third { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 8px 16px; }
+  .third + .third { border-top: 1px solid var(--mist); }
+  .big { font-family: var(--serif); font-size: 56px; line-height: 1; font-variant-numeric: tabular-nums; text-align: center; }
+  .liters {
+    flex: 1; min-width: 0; height: 56px; border: 0; background: transparent;
+    text-align: center; font-family: var(--serif); font-size: 40px;
+    font-variant-numeric: tabular-nums; outline: none;
+  }
+  input[type="range"].slider {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 44px;
+    margin: 8px 0 0; background: transparent; touch-action: pan-x;
+  }
+  input[type="range"].slider::-webkit-slider-runnable-track { height: 8px; background: var(--mist); border-radius: 999px; }
+  input[type="range"].slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 44px; height: 44px; margin-top: -18px;
+    border-radius: 999px; background: var(--olive); border: 3px solid var(--paper);
+  }
+  @media (prefers-reduced-motion: reduce) { .track { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+(function () {
+  var KEY = "vorrat-rechner.v1";
+  var PAGE_COUNT = 6;
+  var MONTHS = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  var WEEK = ["Mo","Di","Mi","Do","Fr","Sa","So"];
+  var SEED = [
+    { id: "hafer", name: "Haferflocken", kcalPer100: 372, grams: 1500 },
+    { id: "reis", name: "Reis", kcalPer100: 349, grams: 2500 },
+    { id: "nudeln", name: "Nudeln", kcalPer100: 358, grams: 1000 },
+    { id: "linsen", name: "Rote Linsen", kcalPer100: 329, grams: 1000 },
+    { id: "oel", name: "Rapsöl", kcalPer100: 884, grams: 750 },
+    { id: "mus", name: "Erdnussmus", kcalPer100: 619, grams: 400 }
+  ];
+  function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      if (c === "&") return "&" + "amp;";
+      if (c === "<") return "&" + "lt;";
+      if (c === ">") return "&" + "gt;";
+      if (c === '"') return "&" + "quot;";
+      return "&" + "#39;";
+    });
+  }
+  function todayISO(now) {
+    now = now || new Date();
+    return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+  }
+  function parseISO(iso) {
+    var p = String(iso || "").split("-").map(Number);
+    return new Date(p[0] || 2026, (p[1] || 1) - 1, p[2] || 1);
+  }
+  function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function dayOffset(a, b) { return Math.round((startOfDay(a).getTime() - startOfDay(b).getTime()) / 86400000); }
+  function tidy(v) { if (!isFinite(v) || v <= 0) return 0; return Math.round(v * 1000) / 1000; }
+  function snapKcal(v) {
+    if (!isFinite(v)) return 2000;
+    return Math.round(Math.min(2400, Math.max(1000, v)) / 200) * 200;
+  }
+  function parseLoose(raw) {
+    var t = String(raw == null ? "" : raw).trim().replace(/\s/g, "");
+    if (!t) return 0;
+    var n = t;
+    if (/^\d{1,3}(\.\d{3})+(,\d*)?$/.test(t)) n = t.replace(/\./g, "").replace(",", ".");
+    else if (/^\d{1,3}(\.\d{3})+$/.test(t)) n = t.replace(/\./g, "");
+    else if (/^\d+(,\d*)?$/.test(t)) n = t.replace(",", ".");
+    else if (!/^\d+(\.\d*)?$/.test(t)) return null;
+    var value = Number(n);
+    if (!isFinite(value) || value < 0) return null;
+    return value;
+  }
+  function formatNumber(value, digits) {
+    digits = digits || 0;
+    return Number(value).toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+  function formatDays(days) {
+    if (days <= 0.02) return "0";
+    var rounded = Math.round(days * 10) / 10;
+    var digits = Math.abs(rounded - Math.round(rounded)) < 0.05 ? 0 : 1;
+    return formatNumber(rounded, digits);
+  }
+  function formatGrams(grams) {
+    if (grams <= 0.05) return "0";
+    if (grams < 10) return formatNumber(grams, 1);
+    return formatNumber(Math.round(grams), 0);
+  }
+  function formatLiters(ml) { return formatNumber(Math.max(0, ml) / 1000, 1); }
+  function formatKcal(kcal) { return formatNumber(Math.round(kcal), 0); }
+  function eatGrams(grams) {
+    if (!isFinite(grams) || grams <= 0.05) return 0;
+    if (grams < 10) return Math.round(grams * 10) / 10;
+    return Math.round(grams);
+  }
+  function eatMl(ml) { if (!isFinite(ml) || ml <= 0) return 0; return Math.round(ml / 100) * 100; }
+  function portion(amount, days) {
+    if (amount <= 0 || days <= 0) return 0;
+    if (days < 1) return amount;
+    return amount / days;
+  }
+  function itemKcal(item) { return (item.grams * item.kcalPer100) / 100; }
+  function buildPlan(s) {
+    var total = s.items.reduce(function (sum, item) { return sum + itemKcal(item); }, 0);
+    var days = s.dailyKcal > 0 ? total / s.dailyKcal : 0;
+    return {
+      totalKcal: total, days: days,
+      lines: s.items.map(function (item) {
+        var grams = portion(item.grams, days);
+        return { id: item.id, name: item.name.trim() || "Unbenannt", grams: grams, kcal: (grams * item.kcalPer100) / 100 };
+      }),
+      waterMl: portion(s.waterMl, days)
+    };
+  }
+  function splitDays(days) {
+    if (days <= 0.02) return { full: 0, frac: 0 };
+    var rounded = Math.round(days * 100) / 100;
+    var full = Math.floor(rounded + 1e-9);
+    var frac = Math.round((rounded - full) * 100) / 100;
+    if (frac < 0.05) frac = 0;
+    if (frac > 0.95) { full += 1; frac = 0; }
+    return { full: full, frac: frac };
+  }
+  function quarterFill(amount) {
+    if (amount <= 0) return 0;
+    if (amount >= 1) return 1;
+    var q = Math.round(amount * 4) / 4;
+    if (q <= 0) return 0;
+    if (q >= 1) return 1;
+    return q;
+  }
+  function coverageOn(offset, days) {
+    if (offset < 0 || days <= 0) return 0;
+    var sp = splitDays(days);
+    if (offset < sp.full) return 1;
+    if (sp.frac > 0 && offset === sp.full) return sp.frac;
+    return 0;
+  }
+  function dogStats(s) {
+    var total = s.dogCans * s.canSize;
+    var per = s.morningGrams + s.eveningGrams;
+    return { totalGrams: total, perDay: per, rations: per > 0 ? Math.floor(total / per) : 0 };
+  }
+  function trackedDays(food, washMl, daily) {
+    if (food <= 0) return 0;
+    if (daily <= 0) return food;
+    return Math.min(food, washMl / daily);
+  }
+  function monthCells(y, m) {
+    var first = new Date(y, m, 1);
+    var pad = (first.getDay() + 6) % 7;
+    var start = new Date(y, m, 1 - pad);
+    var cells = [];
+    for (var i = 0; i < 42; i++) {
+      var d = new Date(start);
+      d.setDate(start.getDate() + i);
+      cells.push(d);
+    }
+    return cells[35].getMonth() === m ? cells : cells.slice(0, 35);
+  }
+  function initial() {
+    return {
+      items: SEED.map(function (item) { return Object.assign({}, item); }),
+      waterMl: 30200, dailyKcal: 2000, elapsedDays: 0, startDate: todayISO(), page: 0, started: false,
+      dogCans: 12, canSize: 400, morningGrams: 200, eveningGrams: 200, toiletryMl: 20000, toiletryDailyMl: 2000
+    };
+  }
+  function whole(v, fallback, max) {
+    var n = Math.floor(Number(v));
+    if (!isFinite(n) || n < 0) return fallback;
+    return Math.min(max, n);
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (!Array.isArray(data.items)) return null;
+      var start = typeof data.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.startDate) ? data.startDate : todayISO();
+      var page = Math.floor(Number(data.page) || 0);
+      if (page < 0 || page >= PAGE_COUNT) page = 0;
+      return {
+        items: data.items.filter(function (item) {
+          return item && typeof item.id === "string" && typeof item.name === "string" && isFinite(item.kcalPer100) && isFinite(item.grams);
+        }).map(function (item) {
+          return { id: item.id, name: item.name, kcalPer100: Math.min(9999, Math.max(0, item.kcalPer100)), grams: tidy(Math.min(10000000, item.grams)) };
+        }),
+        waterMl: tidy(Math.min(100000000, Math.max(0, Number(data.waterMl) || 0))),
+        dailyKcal: snapKcal(Number(data.dailyKcal)),
+        elapsedDays: Math.max(0, Math.floor(Number(data.elapsedDays) || 0)),
+        startDate: start, page: page, started: data.started === true,
+        dogCans: data.dogCans == null ? 12 : whole(data.dogCans, 12, 100000),
+        canSize: data.canSize == null ? 400 : data.canSize === 800 ? 800 : 400,
+        morningGrams: data.morningGrams == null ? 200 : tidy(Math.min(100000, Math.max(0, Number(data.morningGrams) || 0))),
+        eveningGrams: data.eveningGrams == null ? 200 : tidy(Math.min(100000, Math.max(0, Number(data.eveningGrams) || 0))),
+        toiletryMl: data.toiletryMl == null ? 20000 : tidy(Math.min(100000000, Math.max(0, Number(data.toiletryMl) || 0))),
+        toiletryDailyMl: data.toiletryDailyMl == null ? 2000 : tidy(Math.min(100000000, Math.max(0, Number(data.toiletryDailyMl) || 0)))
+      };
+    } catch (e) { return null; }
+  }
+  function exportBackup() {
+    save();
+    var payload = { format: "vorrat-rechner-backup", version: 1, exportedAt: new Date().toISOString(), data: state };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "vorrat-rechner-backup-" + todayISO() + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  }
+  function importBackup(file) {
+    if (!file) return;
+    if (file.size > 2000000) { alert("Die Sicherungsdatei ist zu groß."); return; }
+    var reader = new FileReader();
+    reader.onerror = function () { alert("Datei konnte nicht gelesen werden."); };
+    reader.onload = function () {
+      try {
+        var payload = JSON.parse(reader.result);
+        if (!payload || payload.format !== "vorrat-rechner-backup" || payload.version !== 1 || !payload.data || !Array.isArray(payload.data.items)) throw Error("format");
+        var candidate = payload.data;
+        if (candidate.items.length > 1000 || !candidate.items.every(function (item) { return item && typeof item.id === "string" && typeof item.name === "string" && typeof item.kcalPer100 === "number" && isFinite(item.kcalPer100) && typeof item.grams === "number" && isFinite(item.grams); })) throw Error("items");
+        var previous = localStorage.getItem(KEY);
+        localStorage.setItem(KEY, JSON.stringify(candidate));
+        var checked = load();
+        if (!checked) { if (previous === null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, previous); throw Error("invalid"); }
+        if (!confirm("Backup vom " + (payload.exportedAt ? new Date(payload.exportedAt).toLocaleString("de-DE") : "unbekannten Datum") + " wiederherstellen?\n\nAlle aktuellen Einträge werden ersetzt. Bitte vorher ein Backup exportieren.")) {
+          if (previous === null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, previous);
+          return;
+        }
+        state = checked; undo = null; drafts = {}; focus = null; save(); render();
+        alert("Backup erfolgreich wiederhergestellt.");
+      } catch (e) { alert("Import fehlgeschlagen. Bitte eine gültige Vorrat-Rechner-Backupdatei auswählen."); }
+    };
+    reader.readAsText(file);
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  var svg = {
+    cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8l9-4 9 4v9l-9 4-9-4z"/><path d="M3 8l9 4 9-4M12 12v9"/></svg>',
+    fork: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3v7a3 3 0 0 0 6 0V3M9 10v11M16 3c0 4 2 5 2 8v10"/></svg>',
+    rest: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>',
+    dog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8c0-2 2-4 4-3 1 2 2 3 3 3s2-1 3-3c2-1 4 1 4 3-1 3-1 5 0 8-1 3-3 5-7 5s-6-2-7-5c1-3 1-5 0-8z"/><path d="M9 14h.01M15 14h.01M12 16v2"/></svg>',
+    drop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></svg>',
+    wash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 7h8M9 7V4h6v3M8 10c0 6 2 10 4 10s4-4 4-10"/><path d="M6 20c2 0 2-1 4-1s2 1 4 1 2-1 4-1"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+    minus: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>',
+    left: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>',
+    right: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>'
+  };
+  var NAV = [
+    { label: "Tage", icon: svg.cal }, { label: "Vorrat", icon: svg.box }, { label: "Ration", icon: svg.fork },
+    { label: "Rest", icon: svg.rest }, { label: "Hund", icon: svg.dog }, { label: "Waschen", icon: svg.wash }
+  ];
+  var state = load() || initial();
+  var undo = null, picked = null, drafts = {}, focus = null, gesture = null, swiped = false;
+  var now0 = new Date();
+  var cursor = { y: now0.getFullYear(), m: now0.getMonth() };
+  var app = document.getElementById("app");
+  function shown(key, fallback) { return Object.prototype.hasOwnProperty.call(drafts, key) ? drafts[key] : fallback; }
+  function inputHTML(key, label, fallback) {
+    return '<label class="field"><span>' + esc(label) + '</span><input data-key="' + esc(key) + '" data-bind="' + esc(key) + '" inputmode="decimal" enterkeyhint="done" autocomplete="off" value="' + esc(shown(key, fallback)) + '"></label>';
+  }
+  function waterBlock(title, ml, which) {
+    var key = "liters-" + which;
+    return '<div class="foot"><div class="row" style="margin-bottom:8px;color:var(--olive);font-weight:700"><span>' + (which === "drink" ? svg.drop : svg.wash) + '</span><span style="flex:1">' + esc(title) + '</span></div><div class="row">' +
+      '<button type="button" class="round" data-act="step" data-which="' + which + '" data-delta="-200" aria-label="200 Milliliter weniger">' + svg.minus + '</button>' +
+      '<input class="liters" data-key="' + key + '" data-bind="' + key + '" inputmode="decimal" enterkeyhint="done" aria-label="' + esc(title) + ' in Litern" value="' + esc(shown(key, formatLiters(ml))) + '">' +
+      '<button type="button" class="round" data-act="step" data-which="' + which + '" data-delta="200" aria-label="200 Milliliter mehr">' + svg.plus + '</button>' +
+      '</div><p class="muted" style="text-align:center;margin:6px 0 0">Liter · Schritte à 200 ml</p></div>';
+  }
+  function pageCalendar() {
+    var plan = buildPlan(state), dogs = dogStats(state);
+    var span = state.started ? trackedDays(plan.days, state.toiletryMl, state.toiletryDailyMl) : 0;
+    var washDays = state.toiletryDailyMl > 0 ? state.toiletryMl / state.toiletryDailyMl : null;
+    var washLimits = state.started && washDays != null && washDays + 0.02 < plan.days;
+    var today = startOfDay(new Date()), anchor = parseISO(state.startDate);
+    var days = monthCells(cursor.y, cursor.m).map(function (date) {
+      var iso = todayISO(date);
+      var fromAnchor = dayOffset(date, anchor);
+      var covered = state.started ? coverageOn(fromAnchor - state.elapsedDays, span) : 0;
+      var fill = quarterFill(covered);
+      var inMonth = date.getMonth() === cursor.m;
+      var isToday = dayOffset(date, today) === 0;
+      var ration = covered > 0 ? fromAnchor + 1 : null;
+      var numClass = isToday ? "today" : !inMonth ? "out" : date.getDay() === 0 ? "sun" : "";
+      var label = date.getDate() + ". " + MONTHS[date.getMonth()] + " " + date.getFullYear() + (ration ? ", Tag " + ration : "");
+      return '<button type="button" class="day' + (picked === iso ? " sel" : "") + '" data-act="pick" data-iso="' + iso + '" aria-label="' + esc(label) + '"' + (isToday ? ' aria-current="date"' : "") + ">" +
+        (fill > 0 ? '<span class="wash" style="width:' + (fill * 100) + '%"></span>' : "") +
+        '<span class="num ' + numClass + '">' + date.getDate() + '</span><span class="tag">' + (ration ? "Tag " + ration : "") + '</span></button>';
+    }).join("");
+    var week = WEEK.map(function (name, i) { return '<div class="' + (i === 6 ? "so" : "") + '">' + name + '</div>'; }).join("");
+    var head = state.started
+      ? '<p class="hero" data-days="' + span.toFixed(2) + '">' + formatDays(span) + ' <span style="font-size:28px">Tage</span></p>'
+      : '<p class="hero" data-days="0" style="font-size:40px">Standby</p>';
+    var sub = state.started
+      ? formatKcal(plan.totalKcal) + " kcal" + (plan.days > 0 ? " · " + formatLiters(eatMl(plan.waterMl)) + " L Trinkwasser am Tag" : "") + (washLimits ? " · Waschwasser reicht " + formatDays(washDays) + " Tage" : "")
+      : "Datum antippen, dann Start. Es wird noch nichts abgezogen.";
+    return '<div class="col"><div class="scroll grow"><header class="pad"><p class="kicker">Vorrat Rechner</p>' + head +
+      '<p class="muted" style="font-size:16px">' + esc(sub) + '</p></header><div style="padding:0 12px 12px"><div class="row"><h2>' +
+      esc(MONTHS[cursor.m] + " " + cursor.y) + '</h2><div><button type="button" class="iconbtn" data-act="month" data-dir="-1" aria-label="Vorheriger Monat">' + svg.left +
+      '</button><button type="button" class="iconbtn" data-act="month" data-dir="1" aria-label="Nächster Monat">' + svg.right +
+      '</button></div></div><div class="week">' + week + '</div><div class="grid">' + days + '</div></div></div><p class="lottie">Lottie: ' +
+      formatNumber(dogs.rations, 0) + ' volle Rationen</p>' + (picked ? '<div class="foot"><button type="button" class="btn" data-act="start">Start</button></div>' : "") + '</div>';
+  }
+  function pageStock() {
+    var cards = state.items.map(function (item, index) {
+      return '<li class="card"><div class="row" style="margin-bottom:12px"><p style="margin:0;color:var(--olive);font-weight:700">Lebensmittel ' + (index + 1) +
+        '</p><button type="button" class="btn ghost" data-act="remove" data-id="' + esc(item.id) + '">Entfernen</button></div>' +
+        '<label class="field"><span>Name</span><input data-key="name-' + esc(item.id) + '" data-bind="name-' + esc(item.id) + '" autocomplete="off" placeholder="z. B. Reis" value="' + esc(shown("name-" + item.id, item.name)) + '"></label>' +
+        '<div style="height:12px"></div>' + inputHTML("kcal-" + item.id, "Kalorien je 100 g", item.kcalPer100 ? String(item.kcalPer100) : "") +
+        '<div style="height:12px"></div>' + inputHTML("grams-" + item.id, "Gramm vorrätig", item.grams ? String(item.grams) : "") + '</li>';
+    }).join("");
+    return '<div class="col"><div class="scroll grow"><header class="pad"><p class="kicker">Eingabe</p><h2>Vorrat</h2><p class="muted">Jedes Lebensmittel mit Name, Kalorien und Gramm.</p></header><ul style="list-style:none;margin:0;padding:0">' +
+      cards + '</ul><div style="padding:0 16px 16px"><button type="button" class="btn" data-act="add">Lebensmittel hinzufügen</button></div></div>' + waterBlock("Wasser", state.waterMl, "drink") + '</div>';
+  }
+  function pageRation() {
+    var plan = buildPlan(state);
+    var eaten = plan.lines.reduce(function (s, line) { return s + line.kcal; }, 0);
+    var lines = plan.lines.length ? plan.lines.map(function (line) {
+      return '<li style="border-bottom:1px solid var(--mist);padding:12px 0"><p style="margin:0">' + esc(line.name) + '</p><p style="margin:0;font-family:var(--serif);font-size:28px">' + formatGrams(eatGrams(line.grams)) + ' g</p></li>';
+    }).join("") + '<li style="padding:12px 0"><p style="margin:0">Wasser</p><p style="margin:0;font-family:var(--serif);font-size:28px">' + formatLiters(eatMl(plan.waterMl)) + ' L</p></li>' : '<p class="muted">Noch keine Lebensmittel.</p>';
+    var note = plan.days >= 1 ? formatKcal(eaten) + " kcal heute" : plan.days > 0 ? "alles heute" : "kein Vorrat";
+    return '<div class="scroll"><header class="pad"><p class="kicker">Verteilung</p><h2>Tagesration</h2><p class="muted">Jedes Lebensmittel im gleichen Tempo, bis der Vorrat leer ist.</p></header>' +
+      '<div class="split" style="padding:0 16px 24px;align-items:start"><div><p class="hero" style="font-size:48px">' + formatNumber(state.dailyKcal) + '</p><p class="muted" style="margin:4px 0 0">kcal am Tag</p>' +
+      '<input class="slider" type="range" min="1000" max="2400" step="200" data-bind="kcal" value="' + state.dailyKcal + '" aria-label="Kilokalorien pro Tag"><div class="row muted"><span>1.000</span><span>2.400</span></div>' +
+      '<p style="color:var(--olive);font-weight:700;font-size:18px">reicht ' + formatDays(plan.days) + ' Tage</p><p class="muted">' + note + '</p></div><div><h3 style="margin:0;color:var(--olive);font-size:16px">Gramm heute</h3><ul style="list-style:none;margin:0;padding:0">' + lines + '</ul></div></div></div>';
+  }
+  function pageRest() {
+    var plan = buildPlan(state);
+    var waterEat = Math.min(state.waterMl, eatMl(plan.waterMl));
+    var waterLeft = Math.max(0, state.waterMl - waterEat);
+    var can = state.started && plan.days > 0;
+    var items = state.items.length ? state.items.map(function (item) {
+      var line = null;
+      for (var i = 0; i < plan.lines.length; i++) if (plan.lines[i].id === item.id) line = plan.lines[i];
+      var eat = Math.min(item.grams, eatGrams(line ? line.grams : 0));
+      var left = Math.max(0, item.grams - eat);
+      return '<li style="border-bottom:1px solid var(--mist);padding:16px 20px"><p class="muted" style="margin:0">' + esc(item.name.trim() || "Unbenannt") + '</p><p style="margin:4px 0 0;font-family:var(--serif);font-size:40px;line-height:1">' + formatGrams(left) + ' <span style="font-family:var(--sans);font-size:20px">g</span></p><p class="muted">aktuell ' + formatGrams(item.grams) + ' g · heute −' + formatGrams(eat) + ' g</p></li>';
+    }).join("") : '<p class="muted" style="padding:16px 20px">Keine Lebensmittel im Vorrat.</p>';
+    var banner = undo ? '<div class="row" style="margin-bottom:12px;background:var(--olive);color:var(--card);border-radius:16px;padding:12px 16px"><p style="margin:0">Abgezogen. Tag ' + (state.elapsedDays + 1) + ' ist jetzt heute.</p><button type="button" class="btn ghost" data-act="undo" style="background:var(--card);color:var(--olive)">Zurück</button></div>' : "";
+    return '<div class="col"><div class="scroll grow"><header class="pad"><p class="kicker">Nach der Ration</p><h2>Restbestand</h2><p class="muted">So viel bleibt, wenn die heutige Portion gegessen ist.</p></header><ul style="list-style:none;margin:0;padding:0">' + items +
+      '</ul><div style="padding:16px 20px"><p class="muted" style="margin:0">Wasser nach heute</p><p style="margin:4px 0 0;font-family:var(--serif);font-size:40px;line-height:1">' + formatLiters(waterLeft) + ' <span style="font-family:var(--sans);font-size:20px">L</span></p><p class="muted">aktuell ' + formatLiters(state.waterMl) + ' L · heute −' + formatLiters(waterEat) + ' L</p></div></div>' +
+      '<div class="foot">' + banner + '<button type="button" class="btn clay" data-act="deduct"' + (can ? "" : " disabled") + '>' + (plan.days > 0 ? "Heutige Portion abziehen" : "Nichts mehr abzuziehen") + '</button><p class="muted" style="text-align:center;margin:8px 0 0">Kalender rückt auf den nächsten Tag.</p></div></div>';
+  }
+  function pageDog() {
+    var dogs = dogStats(state);
+    var sizes = [400, 800].map(function (size) {
+      return '<button type="button" data-act="can" data-size="' + size + '" class="' + (state.canSize === size ? "on" : "") + '">' + size + ' g</button>';
+    }).join("");
+    return '<div class="col"><section class="third"><p class="kicker">Lottie</p><h2>Hundefutter</h2><div class="split" style="margin-top:12px">' +
+      inputHTML("cans", "Dosen", state.dogCans ? String(state.dogCans) : "") +
+      '<div><p class="muted" style="margin:0 0 4px">Dosengröße</p><div class="choice">' + sizes + '</div></div></div></section>' +
+      '<section class="third" style="align-items:center"><p class="muted" style="margin:0">Gesamt</p><p class="big">' + formatNumber(dogs.totalGrams) + ' g</p><p class="muted">Dosen mal Größe</p></section>' +
+      '<section class="third"><div class="split">' + inputHTML("morning", "Morgenportion in Gramm", state.morningGrams ? String(state.morningGrams) : "") +
+      inputHTML("evening", "Abendportion in Gramm", state.eveningGrams ? String(state.eveningGrams) : "") +
+      '</div><p style="font-size:18px;font-weight:700;margin:12px 0 0">' + formatNumber(dogs.rations) + ' volle Rationen</p></section></div>';
+  }
+  function pageWash() {
+    var days = state.toiletryDailyMl > 0 ? state.toiletryMl / state.toiletryDailyMl : 0;
+    return '<div class="col"><div class="scroll grow"><header class="pad"><p class="kicker">Hygiene</p><h2>Waschwasser</h2><p class="muted">Für Waschen und Hygiene, nicht zum Trinken. Der Tagesverbrauch kürzt die Tage im Kalender.</p></header></div>' +
+      '<div class="foot"><p style="margin:0 0 8px;color:var(--olive);font-weight:700">Verbrauch am Tag</p><div class="row">' +
+      '<button type="button" class="round" data-act="step" data-which="washday" data-delta="-200" aria-label="200 Milliliter weniger Verbrauch">' + svg.minus + '</button>' +
+      '<p class="hero" style="flex:1;text-align:center;font-size:40px;margin:0">' + formatLiters(state.toiletryDailyMl) + ' L</p>' +
+      '<button type="button" class="round" data-act="step" data-which="washday" data-delta="200" aria-label="200 Milliliter mehr Verbrauch">' + svg.plus + '</button></div>' +
+      '<p class="muted" style="text-align:center;margin:6px 0 0">' + (state.toiletryDailyMl > 0 ? "reicht " + formatDays(days) + " Tage" : "kein Tagesverbrauch") + '</p></div>' +
+      waterBlock("Waschwasser", state.toiletryMl, "wash") + '</div>';
+  }
+  var PAGES = [pageCalendar, pageStock, pageRation, pageRest, pageDog, pageWash];
+  function shell() {
+    var pages = PAGES.map(function (fn, i) {
+      return '<section class="page" aria-label="' + NAV[i].label + '"' + (i === state.page ? "" : ' aria-hidden="true"') + '>' + fn() + '</section>';
+    }).join("");
+    var nav = NAV.map(function (item, i) {
+      return '<button type="button" data-act="page" data-page="' + i + '"' + (i === state.page ? ' class="on" aria-current="page"' : "") + '>' + item.icon + item.label + '</button>';
+    }).join("");
+    return '<div class="backup-bar"><button type="button" data-act="export-backup">↓ Backup sichern</button><button type="button" data-act="import-backup">↑ Backup laden</button><input type="file" id="backup-file" accept=".json,application/json" style="display:none" aria-label="Backup-Datei auswählen"></div><div class="frame" id="frame"><div class="track" id="track">' + pages + '</div></div><nav class="bar" aria-label="Seiten">' + nav + '</nav>';
+  }
+  function render() {
+    var ae = document.activeElement;
+    if (ae && ae.getAttribute && ae.getAttribute("data-key")) focus = { key: ae.getAttribute("data-key"), start: ae.selectionStart, end: ae.selectionEnd };
+    app.innerHTML = shell();
+    var frame = document.getElementById("frame");
+    var w = frame.clientWidth || app.clientWidth;
+    document.getElementById("track").style.transform = "translate3d(" + (-state.page * w) + "px,0,0)";
+    if (focus) {
+      var el = app.querySelector('[data-key="' + CSS.escape(focus.key) + '"]');
+      if (el) { el.focus(); try { el.setSelectionRange(focus.start, focus.end); } catch (e) {} }
+    }
+  }
+  function commit() { save(); render(); }
+  function applyBind(el) {
+    var key = el.getAttribute("data-bind");
+    if (!key) return;
+    if (key === "kcal") { state.dailyKcal = snapKcal(Number(el.value)); undo = null; return; }
+    drafts[key] = el.value;
+    if (key.indexOf("name-") === 0) {
+      var id = key.slice(5);
+      state.items.forEach(function (item) { if (item.id === id) item.name = el.value; });
+      undo = null; return;
+    }
+    var n = parseLoose(el.value);
+    if (n == null) return;
+    undo = null;
+    if (key.indexOf("kcal-") === 0) {
+      var kid = key.slice(5);
+      state.items.forEach(function (item) { if (item.id === kid) item.kcalPer100 = Math.min(9999, Math.max(0, n)); });
+    } else if (key.indexOf("grams-") === 0) {
+      var gid = key.slice(6);
+      state.items.forEach(function (item) { if (item.id === gid) item.grams = tidy(Math.min(10000000, n)); });
+    } else if (key === "liters-drink") state.waterMl = tidy(Math.min(100000000, Math.round(n * 1000)));
+    else if (key === "liters-wash") state.toiletryMl = tidy(Math.min(100000000, Math.round(n * 1000)));
+    else if (key === "cans") state.dogCans = Math.min(100000, Math.max(0, Math.floor(n)));
+    else if (key === "morning") state.morningGrams = tidy(Math.min(100000, n));
+    else if (key === "evening") state.eveningGrams = tidy(Math.min(100000, n));
+  }
+  function step(which, delta) {
+    undo = null;
+    if (which === "drink") state.waterMl = tidy(Math.max(0, state.waterMl + delta));
+    else if (which === "wash") state.toiletryMl = tidy(Math.max(0, state.toiletryMl + delta));
+    else if (which === "washday") state.toiletryDailyMl = tidy(Math.max(0, state.toiletryDailyMl + delta));
+    delete drafts["liters-" + which];
+  }
+  function deduct() {
+    var plan = buildPlan(state);
+    if (!state.started || plan.days <= 0) return;
+    undo = JSON.parse(JSON.stringify(state));
+    var waterEat = Math.min(state.waterMl, eatMl(plan.waterMl));
+    var waterLeft = state.waterMl - waterEat;
+    state.elapsedDays += 1;
+    state.waterMl = waterLeft < 50 ? 0 : Math.round(waterLeft);
+    state.items = state.items.map(function (item) {
+      var line = null;
+      for (var i = 0; i < plan.lines.length; i++) if (plan.lines[i].id === item.id) line = plan.lines[i];
+      var eat = Math.min(item.grams, eatGrams(line ? line.grams : 0));
+      var left = item.grams - eat;
+      return Object.assign({}, item, { grams: left < 0.5 ? 0 : Math.round(left * 1000) / 1000 });
+    });
+  }
+  app.addEventListener("click", function (event) {
+    if (swiped) { swiped = false; return; }
+    var t = event.target.closest("[data-act]");
+    if (!t) return;
+    var act = t.getAttribute("data-act");
+    if (act === "export-backup") { exportBackup(); return; }
+    if (act === "import-backup") { document.getElementById("backup-file").click(); return; }
+    if (act === "page") { state.page = Math.max(0, Math.min(PAGE_COUNT - 1, Number(t.getAttribute("data-page")))); commit(); }
+    else if (act === "month") {
+      var next = new Date(cursor.y, cursor.m + Number(t.getAttribute("data-dir")), 1);
+      cursor = { y: next.getFullYear(), m: next.getMonth() }; render();
+    } else if (act === "pick") { picked = t.getAttribute("data-iso"); render(); }
+    else if (act === "start") {
+      if (!picked) return;
+      state.started = true; state.startDate = picked; state.elapsedDays = 0; picked = null; undo = null; commit();
+    } else if (act === "add") {
+      var id = uid();
+      state.items.push({ id: id, name: "", kcalPer100: 0, grams: 0 });
+      undo = null; focus = { key: "name-" + id, start: 0, end: 0 }; commit();
+    } else if (act === "remove") {
+      var rid = t.getAttribute("data-id");
+      state.items = state.items.filter(function (item) { return item.id !== rid; });
+      undo = null; commit();
+    } else if (act === "can") { state.canSize = Number(t.getAttribute("data-size")) === 800 ? 800 : 400; undo = null; commit(); }
+    else if (act === "step") { step(t.getAttribute("data-which"), Number(t.getAttribute("data-delta"))); commit(); }
+    else if (act === "deduct") { deduct(); commit(); }
+    else if (act === "undo" && undo) { state = undo; undo = null; commit(); }
+  });
+  app.addEventListener("change", function (event) {
+    if (event.target.id === "backup-file") {
+      var file = event.target.files && event.target.files[0];
+      event.target.value = "";
+      importBackup(file);
+    }
+  });
+  app.addEventListener("input", function (event) {
+    var el = event.target;
+    if (!el.getAttribute || !el.getAttribute("data-bind")) return;
+    applyBind(el);
+    if (el.getAttribute("data-bind") === "kcal") commit(); else save();
+  });
+  app.addEventListener("change", function (event) {
+    var el = event.target;
+    if (el.getAttribute && el.getAttribute("data-bind") === "kcal") { applyBind(el); commit(); }
+  });
+  app.addEventListener("focusout", function (event) {
+    var el = event.target;
+    if (!el.getAttribute) return;
+    var key = el.getAttribute("data-key");
+    if (!key) return;
+    delete drafts[key]; focus = null;
+    setTimeout(function () { render(); }, 0);
+  });
+  app.addEventListener("pointerdown", function (event) {
+    if (event.target.closest("input, textarea, select")) return;
+    var frame = document.getElementById("frame");
+    if (!frame || !frame.contains(event.target)) return;
+    gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, locked: null };
+  });
+  app.addEventListener("pointermove", function (event) {
+    if (!gesture || gesture.id !== event.pointerId) return;
+    var dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
+    if (!gesture.locked) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      gesture.locked = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+    }
+    if (gesture.locked !== "h") return;
+    var frame = document.getElementById("frame"), track = document.getElementById("track"), w = frame.clientWidth, resist = dx;
+    if ((state.page <= 0 && dx > 0) || (state.page >= PAGE_COUNT - 1 && dx < 0)) resist = dx * 0.28;
+    track.classList.add("drag");
+    track.style.transform = "translate3d(" + (-state.page * w + resist) + "px,0,0)";
+  });
+  function endGesture(event) {
+    if (!gesture || gesture.id !== event.pointerId) return;
+    var dx = event.clientX - gesture.x, locked = gesture.locked;
+    gesture = null;
+    if (locked === "h" && Math.abs(dx) > 12) swiped = true;
+    if (locked !== "h") return;
+    if (dx <= -56 && state.page < PAGE_COUNT - 1) state.page += 1;
+    else if (dx >= 56 && state.page > 0) state.page -= 1;
+    save(); render();
+  }
+  app.addEventListener("pointerup", endGesture);
+  app.addEventListener("pointercancel", endGesture);
+  window.addEventListener("resize", function () { render(); });
+  render();
+})();
+</script>
+</body>
+</html>
