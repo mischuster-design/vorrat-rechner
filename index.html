@@ -435,6 +435,28 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
   }
+  // Export aus dem Vorrat Scanner: Lebensmittel werden zum aktuellen Vorrat hinzugefügt (gleicher Name = aktualisiert), alles andere bleibt.
+  function importScanner(payload) {
+    if (payload.version !== 1 || !Array.isArray(payload.items) || payload.items.length > 1000) throw Error("scanner");
+    var rows = payload.items.filter(function (it) { return it && typeof it.name === "string" && it.name.trim() && isFinite(Number(it.grams)) && Number(it.grams) >= 0; }).map(function (it) {
+      var k = Number(it.kcalPer100);
+      return { id: String(it.id || ""), name: it.name.trim().slice(0, 80), kcalPer100: it.kcalPer100 != null && isFinite(k) && k > 0 ? Math.min(9999, k) : 0, grams: tidy(Math.min(10000000, Number(it.grams))) };
+    });
+    if (!rows.length) throw Error("empty");
+    var added = 0, updated = 0, next = state.items.map(function (item) { return Object.assign({}, item); });
+    rows.forEach(function (row) {
+      var hit = next.find(function (item) { return item.name.trim().toLowerCase() === row.name.toLowerCase(); });
+      if (hit) { hit.grams = row.grams; if (row.kcalPer100 > 0) hit.kcalPer100 = row.kcalPer100; updated++; return; }
+      var id = "scan-" + (row.id || "x"), n = 2;
+      while (next.some(function (item) { return item.id === id; })) id = "scan-" + (row.id || "x") + "-" + n++;
+      next.push({ id: id, name: row.name, kcalPer100: row.kcalPer100, grams: row.grams, use: true });
+      added++;
+    });
+    if (!confirm(rows.length + (rows.length === 1 ? " Lebensmittel" : " Lebensmittel") + " aus dem Vorrat Scanner übernehmen?\n\nNeu: " + added + ", aktualisiert: " + updated + ".\nAlle anderen Einträge bleiben erhalten.")) return;
+    undo = null;
+    state.items = next; drafts = {}; focus = null; save(); render();
+    alert("Scanner-Daten übernommen.");
+  }
   function importBackup(file) {
     if (!file) return;
     if (file.size > 2000000) { alert("Die Sicherungsdatei ist zu groß."); return; }
@@ -443,6 +465,7 @@
     reader.onload = function () {
       try {
         var payload = JSON.parse(reader.result);
+        if (payload && payload.format === "vorrat-scanner") { importScanner(payload); return; }
         if (!payload || payload.format !== "vorrat-rechner-backup" || payload.version !== 1 || !payload.data || !Array.isArray(payload.data.items)) throw Error("format");
         var candidate = payload.data;
         if (candidate.items.length > 1000 || !candidate.items.every(function (item) { return item && typeof item.id === "string" && typeof item.name === "string" && typeof item.kcalPer100 === "number" && isFinite(item.kcalPer100) && typeof item.grams === "number" && isFinite(item.grams); })) throw Error("items");
@@ -456,7 +479,7 @@
         }
         state = checked; undo = null; drafts = {}; focus = null; save(); render();
         alert("Backup erfolgreich wiederhergestellt.");
-      } catch (e) { alert("Import fehlgeschlagen. Bitte eine gültige Vorrat-Rechner-Backupdatei auswählen."); }
+      } catch (e) { alert("Import fehlgeschlagen. Bitte eine Vorrat-Rechner-Sicherung oder einen Export aus dem Vorrat Scanner auswählen."); }
     };
     reader.readAsText(file);
   }
