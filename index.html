@@ -201,6 +201,10 @@
   .choice button.on { background: var(--olive); color: var(--card); border-color: var(--olive); }
   .third { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 8px 16px; }
   .third + .third { border-top: 1px solid var(--mist); }
+  .dog { overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+  .dog .third { flex: 1 0 auto; padding: 16px; }
+  .dog .total { align-items: center; text-align: center; gap: 6px; }
+  .dog .total p { margin: 0; }
   .big { font-family: var(--serif); font-size: 56px; line-height: 1; font-variant-numeric: tabular-nums; text-align: center; }
   .liters {
     flex: 1; min-width: 0; height: 56px; border: 0; background: transparent;
@@ -216,6 +220,16 @@
     -webkit-appearance: none; width: 44px; height: 44px; margin-top: -18px;
     border-radius: 999px; background: var(--olive); border: 3px solid var(--paper);
   }
+  .foods { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px; margin: 0; list-style: none; }
+  .food { position: relative; width: 100%; min-height: 112px; text-align: left; border: 1px solid var(--mist); border-radius: 16px; background: var(--card); padding: 12px 12px 10px 44px; display: flex; flex-direction: column; gap: 2px; }
+  .food .tick { position: absolute; left: 12px; top: 12px; width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--olive); display: flex; align-items: center; justify-content: center; color: var(--card); }
+  .food.on { border-color: var(--olive); box-shadow: inset 0 0 0 1px var(--olive); }
+  .food.on .tick { background: var(--olive); }
+  .food.off { background: var(--paper); }
+  .food.off .fname, .food.off .fgrams { color: var(--muted); }
+  .food .fname { font-weight: 650; font-size: 16px; line-height: 1.2; overflow-wrap: anywhere; }
+  .food .fgrams { font-family: var(--serif); font-size: 26px; line-height: 1.1; }
+  .food .fdays { font-size: 13px; color: var(--muted); }
   @media (prefers-reduced-motion: reduce) { .track { transition: none; } }
 </style>
 </head>
@@ -303,9 +317,9 @@
   function itemKcal(item) { return (item.grams * item.kcalPer100) / 100; }
   function buildPlan(s) {
     var total = s.items.reduce(function (sum, item) { return sum + itemKcal(item); }, 0);
-    // Jedes Lebensmittel mit Kalorien deckt den gleichen Anteil des Tagesbedarfs.
+    // Nur angehakte Lebensmittel zählen. Jedes davon deckt den gleichen Anteil des Tagesbedarfs.
     // Seine Reichweite wird einzeln berechnet; das erste, das leer ist, begrenzt die Gesamttage.
-    var active = s.items.filter(function (item) { return item.kcalPer100 > 0; });
+    var active = s.items.filter(function (item) { return item.use !== false && item.kcalPer100 > 0; });
     var share = active.length && s.dailyKcal > 0 ? s.dailyKcal / active.length : 0;
     var per = {};
     active.forEach(function (item) {
@@ -395,7 +409,7 @@
         items: data.items.filter(function (item) {
           return item && typeof item.id === "string" && typeof item.name === "string" && isFinite(item.kcalPer100) && isFinite(item.grams);
         }).map(function (item) {
-          return { id: item.id, name: item.name, kcalPer100: Math.min(9999, Math.max(0, item.kcalPer100)), grams: tidy(Math.min(10000000, item.grams)) };
+          return { id: item.id, name: item.name, kcalPer100: Math.min(9999, Math.max(0, item.kcalPer100)), grams: tidy(Math.min(10000000, item.grams)), use: item.use !== false };
         }),
         waterMl: tidy(Math.min(100000000, Math.max(0, Number(data.waterMl) || 0))),
         dailyKcal: snapKcal(Number(data.dailyKcal)),
@@ -529,14 +543,22 @@
   function pageRation() {
     var plan = buildPlan(state);
     var eaten = plan.lines.reduce(function (s, line) { return s + line.kcal; }, 0);
-    var lines = plan.lines.length ? plan.lines.map(function (line) {
-      return '<li style="border-bottom:1px solid var(--mist);padding:12px 0"><p style="margin:0">' + esc(line.name) + '</p><p style="margin:0;font-family:var(--serif);font-size:28px">' + formatGrams(eatGrams(line.grams)) + ' g</p>' + (line.days != null ? '<p class="muted" style="margin:0;font-size:14px">reicht allein ' + formatDays(line.days) + ' Tage</p>' : "") + '</li>';
-    }).join("") + '<li style="padding:12px 0"><p style="margin:0">Wasser</p><p style="margin:0;font-family:var(--serif);font-size:28px">' + formatLiters(eatMl(plan.waterMl)) + ' L</p></li>' : '<p class="muted">Noch keine Lebensmittel.</p>';
-    var note = plan.days >= 1 ? formatKcal(eaten) + " kcal heute" : plan.days > 0 ? "alles heute" : "kein Vorrat";
-    return '<div class="scroll"><header class="pad"><p class="kicker">Verteilung</p><h2>Tagesration</h2><p class="muted">Jedes Lebensmittel deckt den gleichen Anteil der Kalorien. Der Vorrat reicht, bis das erste leer ist.</p></header>' +
-      '<div class="split" style="padding:0 16px 24px;align-items:start"><div><p class="hero" style="font-size:48px">' + formatNumber(state.dailyKcal) + '</p><p class="muted" style="margin:4px 0 0">kcal am Tag</p>' +
-      '<input class="slider" type="range" min="1000" max="2400" step="200" data-bind="kcal" value="' + state.dailyKcal + '" aria-label="Kilokalorien pro Tag"><div class="row muted"><span>1.000</span><span>2.400</span></div>' +
-      '<p style="color:var(--olive);font-weight:700;font-size:18px">reicht ' + formatDays(plan.days) + ' Tage</p><p class="muted">' + note + '</p></div><div><h3 style="margin:0;color:var(--olive);font-size:16px">Gramm heute</h3><ul style="list-style:none;margin:0;padding:0">' + lines + '</ul></div></div></div>';
+    var picks = state.items.filter(function (item) { return item.use !== false; }).length;
+    var check = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5 9-10"/></svg>';
+    var cards = plan.lines.map(function (line, i) {
+      var item = state.items[i], on = item.use !== false;
+      var days = !on ? "nicht ausgewählt" : !(item.kcalPer100 > 0) ? "keine Kalorien eingetragen" : "reicht allein " + formatDays(line.days) + " Tage";
+      return '<li><button type="button" class="food ' + (on ? "on" : "off") + '" data-act="use" data-id="' + esc(item.id) + '" role="checkbox" aria-checked="' + (on ? "true" : "false") + '">' +
+        '<span class="tick">' + (on ? check : "") + '</span><span class="fname">' + esc(line.name) + '</span>' +
+        '<span class="fgrams">' + (on ? formatGrams(eatGrams(line.grams)) + " g" : "–") + '</span><span class="fdays">' + days + '</span></button></li>';
+    }).join("");
+    var note = !state.items.length ? "Noch keine Lebensmittel." : !picks ? "Bitte mindestens ein Lebensmittel anhaken." : plan.days >= 1 ? formatKcal(eaten) + " kcal heute aus " + picks + (picks === 1 ? " Lebensmittel" : " Lebensmitteln") : plan.days > 0 ? "alles heute" : "kein Vorrat";
+    return '<div class="scroll"><header class="pad" style="padding-bottom:4px"><p class="kicker">Verteilung</p><h2>Tagesration</h2><p class="muted">Nur angehakte Lebensmittel zählen. Sie teilen sich die Kalorien gleichmäßig, bis das erste leer ist.</p></header>' +
+      '<div class="split" style="padding:0 16px;align-items:center"><div><p class="hero" style="font-size:48px;margin:0">' + formatNumber(state.dailyKcal) + '</p><p class="muted" style="margin:4px 0 0">kcal am Tag</p></div>' +
+      '<div><input class="slider" type="range" min="1000" max="2400" step="200" data-bind="kcal" value="' + state.dailyKcal + '" aria-label="Kilokalorien pro Tag"><div class="row muted"><span>1.000</span><span>2.400</span></div></div></div>' +
+      '<div style="padding:24px 16px 16px"><p style="color:var(--olive);font-weight:700;font-size:20px;margin:0">' + formatNumber(state.dailyKcal) + ' kcal reichen ' + formatDays(plan.days) + ' Tage</p><p class="muted" style="margin:4px 0 0">' + note + '</p></div>' +
+      '<ul class="foods">' + cards + '</ul>' +
+      '<div style="padding:16px 20px 24px"><p class="muted" style="margin:0">Wasser heute</p><p style="margin:0;font-family:var(--serif);font-size:28px">' + formatLiters(eatMl(plan.waterMl)) + ' L</p></div></div>';
   }
   function pageRest() {
     var plan = buildPlan(state);
@@ -560,10 +582,10 @@
     var sizes = [400, 800].map(function (size) {
       return '<button type="button" data-act="can" data-size="' + size + '" class="' + (state.canSize === size ? "on" : "") + '">' + size + ' g</button>';
     }).join("");
-    return '<div class="col"><section class="third"><p class="kicker">Lottie</p><h2>Hundefutter</h2><div class="split" style="margin-top:12px">' +
+    return '<div class="col dog"><section class="third"><p class="kicker">Lottie</p><h2>Hundefutter</h2><div class="split" style="margin-top:12px">' +
       inputHTML("cans", "Dosen", state.dogCans ? String(state.dogCans) : "") +
       '<div><p class="muted" style="margin:0 0 4px">Dosengröße</p><div class="choice">' + sizes + '</div></div></div></section>' +
-      '<section class="third" style="align-items:center"><p class="muted" style="margin:0">Gesamt</p><p class="big">' + formatNumber(dogs.totalGrams) + ' g</p><p class="muted">Dosen mal Größe</p></section>' +
+      '<section class="third total"><p class="muted">Gesamt</p><p class="big">' + formatNumber(dogs.totalGrams) + ' g</p><p class="muted">Dosen mal Größe</p></section>' +
       '<section class="third"><div class="split">' + inputHTML("morning", "Morgenportion in Gramm", state.morningGrams ? String(state.morningGrams) : "") +
       inputHTML("evening", "Abendportion in Gramm", state.eveningGrams ? String(state.eveningGrams) : "") +
       '</div><p style="font-size:18px;font-weight:700;margin:12px 0 0">' + formatNumber(dogs.rations) + ' volle Rationen</p></section></div>';
@@ -674,6 +696,11 @@
       undo = null; commit();
     } else if (act === "can") { state.canSize = Number(t.getAttribute("data-size")) === 800 ? 800 : 400; undo = null; commit(); }
     else if (act === "step") { step(t.getAttribute("data-which"), Number(t.getAttribute("data-delta"))); commit(); }
+    else if (act === "use") {
+      var uidv = t.getAttribute("data-id");
+      state.items.forEach(function (item) { if (item.id === uidv) item.use = item.use === false; });
+      undo = null; commit();
+    }
     else if (act === "deduct") { deduct(); commit(); }
     else if (act === "undo" && undo) { state = undo; undo = null; commit(); }
   });
