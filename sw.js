@@ -1,4 +1,4 @@
-const CACHE = 'vorrat-rechner-v2';
+const CACHE = 'vorrat-rechner-v3';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES)).then(() => self.skipWaiting()));
@@ -14,5 +14,5 @@ self.addEventListener('fetch', event => {
       caches.open(CACHE).then(cache => cache.put(event.request, copy));
     }
     return response;
-  }).catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html'))));
+  }).catch(() => caches.match(event.request, { ignoreSearch: true }).then(cached => cached || caches.match('./index.html'))));
 });
