@@ -316,17 +316,19 @@
   }
   function itemKcal(item) { return (item.grams * item.kcalPer100) / 100; }
   function buildPlan(s) {
-    var total = s.items.reduce(function (sum, item) { return sum + itemKcal(item); }, 0);
-    // Nur angehakte Lebensmittel zählen. Jedes davon deckt den gleichen Anteil des Tagesbedarfs.
-    // Seine Reichweite wird einzeln berechnet; das erste, das leer ist, begrenzt die Gesamttage.
+    // Nur angehakte Lebensmittel zählen. Gesamtkalorien geteilt durch den Tagesbedarf.
+    // Jedes Lebensmittel wird gleichmäßig über alle Tage verteilt, so sind alle am selben Tag leer.
     var active = s.items.filter(function (item) { return item.use !== false && item.kcalPer100 > 0; });
-    var share = active.length && s.dailyKcal > 0 ? s.dailyKcal / active.length : 0;
+    var activeKcal = active.reduce(function (sum, item) { return sum + itemKcal(item); }, 0);
+    var total = activeKcal;
+    var days = activeKcal > 0 && s.dailyKcal > 0 ? activeKcal / s.dailyKcal : 0;
     var per = {};
     active.forEach(function (item) {
-      var daily = share > 0 ? (share * 100) / item.kcalPer100 : 0;
-      per[item.id] = { daily: daily, days: daily > 0 ? item.grams / daily : 0 };
+      per[item.id] = {
+        daily: days > 0 ? item.grams / days : 0,
+        days: s.dailyKcal > 0 ? itemKcal(item) / s.dailyKcal : 0
+      };
     });
-    var days = active.length && share > 0 ? Math.min.apply(null, active.map(function (item) { return per[item.id].days; })) : 0;
     var today = days <= 0 ? 0 : days < 1 ? days : 1;
     return {
       totalKcal: total, days: days,
@@ -576,7 +578,7 @@
         '<span class="fgrams">' + (on ? formatGrams(eatGrams(line.grams)) + " g" : "–") + '</span><span class="fdays">' + days + '</span></button></li>';
     }).join("");
     var note = !state.items.length ? "Noch keine Lebensmittel." : !picks ? "Bitte mindestens ein Lebensmittel anhaken." : plan.days >= 1 ? formatKcal(eaten) + " kcal heute aus " + picks + (picks === 1 ? " Lebensmittel" : " Lebensmitteln") : plan.days > 0 ? "alles heute" : "kein Vorrat";
-    return '<div class="scroll"><header class="pad" style="padding-bottom:4px"><p class="kicker">Verteilung</p><h2>Tagesration</h2><p class="muted">Nur angehakte Lebensmittel zählen. Sie teilen sich die Kalorien gleichmäßig, bis das erste leer ist.</p></header>' +
+    return '<div class="scroll"><header class="pad" style="padding-bottom:4px"><p class="kicker">Verteilung</p><h2>Tagesration</h2><p class="muted">Nur angehakte Lebensmittel zählen. Alle angehakten Lebensmittel werden gleichmäßig über die Tage verteilt.</p></header>' +
       '<div class="split" style="padding:0 16px;align-items:center"><div><p class="hero" style="font-size:48px;margin:0">' + formatNumber(state.dailyKcal) + '</p><p class="muted" style="margin:4px 0 0">kcal am Tag</p></div>' +
       '<div><input class="slider" type="range" min="1000" max="2400" step="200" data-bind="kcal" value="' + state.dailyKcal + '" aria-label="Kilokalorien pro Tag"><div class="row muted"><span>1.000</span><span>2.400</span></div></div></div>' +
       '<div style="padding:24px 16px 16px"><p style="color:var(--olive);font-weight:700;font-size:20px;margin:0">' + formatNumber(state.dailyKcal) + ' kcal reichen ' + formatDays(plan.days) + ' Tage</p><p class="muted" style="margin:4px 0 0">' + note + '</p></div>' +
